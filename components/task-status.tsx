@@ -1,3 +1,4 @@
+// components/task-status.tsx
 "use client"
 import { Check, Play, Circle, ChevronDown, ChevronRight } from "lucide-react"
 
@@ -25,7 +26,7 @@ interface ConversationTaskGroup {
 
 // 更新 TaskStatusProps 接口
 export interface TaskStatusProps {
-  taskGroups: ConversationTaskGroup[]
+  taskGroups: ConversationTaskGroup[] | undefined; // 明确 taskGroups 可以是 undefined
   collapsedMode?: boolean
   maxVisibleTasks?: number
   expandedGroups?: Record<string, boolean>
@@ -33,7 +34,7 @@ export interface TaskStatusProps {
 }
 
 export function TaskStatus({
-  taskGroups,
+  taskGroups, // 接收 taskGroups prop
   collapsedMode = false,
   maxVisibleTasks = 3,
   expandedGroups = {},
@@ -43,11 +44,26 @@ export function TaskStatus({
   const isGroupExpanded = (group: ConversationTaskGroup) => {
     // 使用任务组ID或创建一个唯一ID
     const groupId = group.taskGroupId || group.conversationId
-    return expandedGroups[groupId] ?? false
+    // 确保 expandedGroups 存在
+    return expandedGroups?.[groupId] ?? false
   }
+
+  // --- 添加这个检查来处理 taskGroups 为 undefined 的情况 ---
+  if (!taskGroups || !Array.isArray(taskGroups)) {
+    // 在服务器端渲染时，如果 taskGroups 是 undefined，会渲染这个
+    // 在客户端加载后，如果 taskGroups 被 useState 初始化为数组，会正常渲染列表
+    return (
+        <div className="border rounded-md bg-gray-50 text-xs divide-y p-2 text-center text-gray-500">
+          加载任务组中...
+        </div>
+    );
+  }
+  // -------------------------------------------------------------
+
 
   return (
     <div className="border rounded-md bg-gray-50 text-xs divide-y">
+      {/* 现在可以安全地使用 taskGroups.map()，因为上面已经检查过了 */}
       {taskGroups.map((group) => {
         const completedTasks = group.tasks.filter((task) => task.status === "completed")
         const activeTasks = group.tasks.filter((task) => task.status !== "completed")
@@ -64,9 +80,11 @@ export function TaskStatus({
           collapsedMode && !expanded ? completedTasks.length - Math.max(0, maxVisibleTasks - activeTasks.length) : 0
 
         // 使用任务组ID或创建一个唯一ID
-        const groupId = group.taskGroupId || group.conversationId
+        const groupId = group.taskGroupId || group.conversationId; // 确保 groupId 有值
 
         return (
+          // 确保 group 和 groupId 存在
+          group && groupId ? (
           <div key={groupId} className="task-group">
             {/* Conversation header */}
             <div
@@ -89,7 +107,10 @@ export function TaskStatus({
 
             {/* Tasks */}
             <div className={`${expanded ? "block" : "hidden"}`}>
-              {tasksToShow.map((task) => (
+              {/* 确保 group.tasks 存在且是数组 */}
+              {(Array.isArray(group.tasks) ? tasksToShow : []).map((task) => (
+                // 确保 task 存在且有 id
+                task && task.id ? (
                 <div key={task.id} className="flex items-center justify-between p-2 border-t first:border-t-0">
                   <div className="flex items-center gap-2">
                     {task.status === "completed" ? (
@@ -115,6 +136,7 @@ export function TaskStatus({
                         : ""}
                   </div>
                 </div>
+                ) : null // 如果 task 或 task.id 不存在，不渲染
               ))}
 
               {hiddenCompletedCount > 0 && (
@@ -124,10 +146,14 @@ export function TaskStatus({
               )}
             </div>
           </div>
+          ) : null // 如果 group 或 groupId 不存在，不渲染该组
         )
       })}
 
-      {taskGroups.length === 0 && <div className="p-2 text-center text-xs text-gray-500">暂无任务</div>}
+      {/* 这里的 taskGroups.length === 0 判断只有在 taskGroups 是数组时才有效 */}
+      {/* 所以需要确保在最开始的检查之后，或者在这里也加上检查 */}
+      {/* 直接使用 taskGroups.length === 0 是安全的，因为上面的 if 已经确保了 taskGroups 是数组 */}
+       {taskGroups.length === 0 && <div className="p-2 text-center text-xs text-gray-500">暂无任务</div>}
     </div>
   )
 }
